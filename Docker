@@ -1,0 +1,262 @@
+# Docker Command Reference — Zero to Hero
+
+A complete, categorized reference of Docker CLI commands. Bookmark this and refer back as you build projects.
+
+---
+
+## 1. Docker Info & System
+
+```bash
+docker version                 # Client & server version
+docker info                    # System-wide info (containers, images, storage driver, etc.)
+docker system df               # Disk usage by images/containers/volumes
+docker system prune            # Remove unused containers, networks, dangling images
+docker system prune -a         # Also remove unused images (not just dangling ones)
+docker system prune -a --volumes  # Also remove unused volumes (careful!)
+docker events                  # Real-time stream of Docker events
+```
+
+---
+
+## 2. Images
+
+```bash
+docker images                      # List local images
+docker images -a                   # Include intermediate images
+docker search <term>                # Search Docker Hub
+docker pull <image>:<tag>           # Download an image
+docker build -t <name>:<tag> .      # Build image from Dockerfile in current dir
+docker build -t <name> -f Dockerfile.dev .   # Use a specific Dockerfile
+docker build --no-cache -t <name> . # Build without using cache
+docker tag <image> <newname>:<tag>  # Tag an image
+docker push <name>:<tag>            # Push image to registry
+docker rmi <image>                  # Remove an image
+docker rmi $(docker images -q)      # Remove ALL images
+docker history <image>              # Show image layer history
+docker inspect <image>              # Detailed JSON metadata
+docker save -o file.tar <image>     # Export image to tar file
+docker load -i file.tar             # Import image from tar file
+docker image prune                  # Remove dangling images
+docker image prune -a               # Remove all unused images
+```
+
+---
+
+## 3. Containers — Lifecycle
+
+```bash
+docker run <image>                        # Create + start container
+docker run -d <image>                     # Detached (background) mode
+docker run -it <image> bash               # Interactive with terminal
+docker run --name mycontainer <image>     # Give it a name
+docker run -p 8080:80 <image>             # Map host:container port
+docker run -e KEY=value <image>           # Set environment variable
+docker run --env-file .env <image>        # Load env vars from file
+docker run -v /host/path:/container/path <image>  # Bind mount
+docker run --rm <image>                   # Auto-remove container after exit
+docker run --restart unless-stopped <image>  # Restart policy
+docker run --network mynet <image>        # Attach to a custom network
+docker run --memory=512m --cpus=1 <image> # Resource limits
+
+docker start <container>          # Start a stopped container
+docker stop <container>           # Gracefully stop
+docker restart <container>        # Restart
+docker pause <container>          # Pause processes
+docker unpause <container>        # Resume
+docker kill <container>           # Force stop (SIGKILL)
+docker rm <container>             # Remove a stopped container
+docker rm -f <container>          # Force remove (even if running)
+docker rm $(docker ps -aq)        # Remove ALL containers
+```
+
+---
+
+## 4. Containers — Inspecting & Interacting
+
+```bash
+docker ps                     # Running containers
+docker ps -a                  # All containers (including stopped)
+docker ps -q                  # Only container IDs
+docker logs <container>       # View logs
+docker logs -f <container>    # Follow logs (live tail)
+docker logs --tail 100 <container>  # Last 100 lines
+docker inspect <container>    # Full JSON metadata
+docker top <container>        # Running processes inside container
+docker stats                  # Live resource usage (all containers)
+docker stats <container>      # Live resource usage (one container)
+docker exec -it <container> bash    # Open shell inside running container
+docker exec <container> <cmd>       # Run one-off command inside container
+docker cp <container>:/path ./local # Copy file OUT of container
+docker cp ./local <container>:/path # Copy file INTO container
+docker diff <container>       # Show filesystem changes vs image
+docker port <container>       # Show port mappings
+docker attach <container>     # Attach terminal to running container's main process
+```
+
+---
+
+## 5. Dockerfile Instructions (Reference)
+
+```dockerfile
+FROM node:20-alpine          # Base image
+WORKDIR /app                 # Set working directory
+COPY package*.json ./        # Copy files (order matters for caching!)
+RUN npm install               # Execute command at build time
+COPY . .                      # Copy rest of source
+EXPOSE 3000                   # Document the port (doesn't publish it)
+ENV NODE_ENV=production       # Set environment variable
+ARG BUILD_VERSION=1.0         # Build-time variable (not in final image)
+USER node                     # Run as non-root user
+VOLUME ["/data"]              # Declare a mount point
+CMD ["node", "server.js"]     # Default command (overridable at runtime)
+ENTRYPOINT ["node"]           # Fixed entrypoint (args appended to it)
+HEALTHCHECK CMD curl -f http://localhost:3000/ || exit 1
+```
+
+**CMD vs ENTRYPOINT:** `CMD` can be fully overridden by `docker run <image> <other-cmd>`. `ENTRYPOINT` is fixed; anything passed at runtime is appended as arguments to it. Combine them: `ENTRYPOINT` for the binary, `CMD` for default args.
+
+---
+
+## 6. Volumes (Persistent Data)
+
+```bash
+docker volume create myvol           # Create a named volume
+docker volume ls                     # List volumes
+docker volume inspect myvol          # Details (mount point, driver)
+docker volume rm myvol               # Remove a volume
+docker volume prune                  # Remove all unused volumes
+
+docker run -v myvol:/app/data <image>          # Named volume mount
+docker run -v /host/dir:/app/data <image>      # Bind mount (host path)
+docker run -v /app/data <image>                # Anonymous volume
+docker run --mount type=volume,src=myvol,dst=/data <image>  # Long-form syntax
+```
+
+**Volume vs bind mount:** volumes are managed by Docker (`/var/lib/docker/volumes/...`), portable, and preferred for production data. Bind mounts point to a specific host path — great for local dev (live code reload).
+
+---
+
+## 7. Networks
+
+```bash
+docker network ls                          # List networks
+docker network create mynet                # Create a bridge network
+docker network create --driver bridge mynet
+docker network inspect mynet                # Details (connected containers, subnet)
+docker network rm mynet                     # Remove a network
+docker network connect mynet <container>    # Attach running container to network
+docker network disconnect mynet <container> # Detach
+
+docker run --network mynet --name app1 <image>
+docker run --network mynet --name app2 <image>
+# app1 can now reach app2 via hostname "app2"
+```
+
+Default network types: `bridge` (default, isolated per host), `host` (shares host's network stack), `none` (no networking), `overlay` (multi-host, used in Swarm).
+
+---
+
+## 8. Docker Compose
+
+```bash
+docker compose up               # Create + start all services (foreground)
+docker compose up -d            # Detached mode
+docker compose up --build       # Rebuild images before starting
+docker compose down             # Stop and remove containers, networks
+docker compose down -v          # Also remove named volumes
+docker compose ps               # List services status
+docker compose logs             # View logs for all services
+docker compose logs -f <service>  # Follow logs for one service
+docker compose exec <service> bash  # Shell into a running service
+docker compose build            # Build/rebuild services
+docker compose restart <service>
+docker compose stop / start
+docker compose config           # Validate & view merged config
+```
+
+**Minimal `docker-compose.yml` example:**
+```yaml
+services:
+  web:
+    build: .
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+    depends_on:
+      - db
+  db:
+    image: postgres:16
+    volumes:
+      - dbdata:/var/lib/postgresql/data
+    environment:
+      - POSTGRES_PASSWORD=secret
+volumes:
+  dbdata:
+```
+
+---
+
+## 9. Registry & Auth
+
+```bash
+docker login                          # Login to Docker Hub
+docker login <registry-url>           # Login to private registry (ECR, GCR, GHCR)
+docker logout
+docker tag myapp:latest username/myapp:1.0
+docker push username/myapp:1.0
+docker pull username/myapp:1.0
+```
+
+---
+
+## 10. Docker Swarm (Orchestration Basics)
+
+```bash
+docker swarm init                     # Initialize a swarm (manager node)
+docker swarm join --token <token> <manager-ip>:2377   # Join as worker
+docker node ls                        # List nodes in swarm
+docker service create --name web --replicas 3 -p 80:80 nginx
+docker service ls                     # List services
+docker service scale web=5            # Scale replicas
+docker service update --image nginx:latest web
+docker stack deploy -c docker-compose.yml mystack   # Deploy a stack
+docker stack services mystack
+docker stack rm mystack
+```
+
+---
+
+## 11. Cleanup Cheat Sheet (use with care)
+
+```bash
+docker container prune       # Remove all stopped containers
+docker image prune -a        # Remove all unused images
+docker volume prune          # Remove all unused volumes
+docker network prune         # Remove all unused networks
+docker system prune -a --volumes  # Nuke everything unused
+```
+
+---
+
+## 12. Useful Flags Quick Reference
+
+| Flag | Meaning |
+|---|---|
+| `-d` | Detached (background) |
+| `-it` | Interactive + TTY (for shells) |
+| `-p host:container` | Port mapping |
+| `-v host:container` | Volume/bind mount |
+| `-e KEY=val` | Environment variable |
+| `--name` | Container name |
+| `--rm` | Auto-remove on exit |
+| `--network` | Attach to network |
+| `-f` | Follow (logs) / force (rm) |
+| `--build-arg` | Pass build-time variable |
+| `--no-cache` | Skip build cache |
+
+---
+
+## Next: Spring Boot + Docker
+
+Once you're comfortable with the commands above, we'll build a real Spring Boot app and containerize it — covering multi-stage builds (Maven/Gradle build stage + slim JRE runtime stage), layered JARs for faster rebuilds, connecting Spring Boot to a Dockerized Postgres/MySQL via Compose, and environment-based config (`application.yml` + Docker env vars). Just say the word when you're ready to start that.
