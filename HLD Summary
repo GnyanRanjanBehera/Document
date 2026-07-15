@@ -1,0 +1,127 @@
+1. Networking & Communication Basics
+
+Client-Server Model
+DNS
+IP Address, Ports
+TCP vs UDP
+HTTP/HTTPS, REST APIs
+RPC (gRPC)
+WebSockets, Server-Sent Events (SSE)
+Polling vs Long Polling vs Webhooks
+Proxy vs Reverse Proxy
+
+2. Scalability & Traffic Management
+
+Vertical vs Horizontal Scaling
+Load Balancers (algorithms: round robin, least connections, IP hash)
+API Gateway
+Rate Limiting (Token bucket, Leaky bucket, Sliding window, Fixed window)
+Circuit Breaker Pattern
+Health Checks & Heartbeats
+Latency vs Throughput
+Bottleneck identification
+
+3. Databases
+
+SQL vs NoSQL (types: key-value, document, column-family, graph)
+Database Indexing
+Replication (Master-Slave, Master-Master)
+Sharding/Partitioning (range-based, hash-based, geo-based)
+Consistent Hashing
+Database Transactions & ACID
+Distributed Transactions / Saga Pattern
+Denormalization
+Read/Write splitting
+
+4. Consistency & Distributed Systems Theory
+
+CAP Theorem
+PACELC Theorem (extension of CAP)
+Strong vs Eventual Consistency
+Quorum (Read/Write quorum, N/W/R model)
+Consensus Algorithms (Paxos, Raft) — conceptual level
+Distributed Locks
+Vector Clocks / Conflict Resolution (advanced)
+
+5. Caching
+
+Cache-aside, Write-through, Write-back, Write-around
+Cache Eviction Policies (LRU, LFU, FIFO)
+CDN (Content Delivery Network)
+Cache Invalidation strategies
+
+6. Asynchronous Processing
+
+Message Queues (Kafka, RabbitMQ, SQS)
+Pub/Sub Pattern
+Event-Driven Architecture
+Batch Processing vs Stream Processing
+
+7. Storage Systems
+
+Blob/Object Storage (e.g., S3-style)
+File Storage vs Block Storage vs Object Storage
+Data Lakes / Data Warehouses (high-level awareness)
+
+8. System Architecture Patterns
+
+Monolith vs Microservices
+Service Discovery
+Sidecar Pattern
+API Composition / BFF (Backend for Frontend)
+Strangler Fig Pattern (migration strategy)
+
+9. Reliability & Fault Tolerance
+
+Redundancy & Failover
+Disaster Recovery, Backups
+Idempotency (handling duplicate requests safely)
+Retry mechanisms & Exponential Backoff
+Graceful Degradation
+Chaos Engineering (awareness level)
+
+10. Identifiers & Data Generation
+
+Unique ID Generation (UUID, Snowflake ID, auto-increment with sharding-safe logic)
+
+11. Security
+
+Authentication vs Authorization
+OAuth, JWT
+Encryption (at rest vs in transit)
+DDoS protection basics
+
+12. Search & Discovery
+
+Inverted Index (used in search engines, autocomplete)
+Elasticsearch (high-level concept)
+Trie data structure (autocomplete systems)
+
+13. Geo-Distributed Systems
+
+Multi-region architecture
+Data residency / latency-based routing
+Active-active vs Active-passive setups
+
+14. Estimation & Design Process
+
+Back-of-the-envelope calculations (QPS, storage, bandwidth)
+Capacity planning
+The HLD framework (requirements → estimation → API design → architecture → deep dive → bottlenecks)
+
+15. Classic Practice Problems
+
+URL Shortener
+Rate Limiter
+Pastebin
+Chat Application (WhatsApp)
+Twitter/Feed system
+Instagram/Photo sharing
+YouTube/Netflix (video streaming)
+Uber/Ride sharing
+Notification System
+Web Crawler
+Distributed Cache
+Search Autocomplete
+Payment System
+Ticket Booking System (BookMyShow/Ticketmaster)
