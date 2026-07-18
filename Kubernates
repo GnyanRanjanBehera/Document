@@ -1,0 +1,537 @@
+# Kubernetes — Zero to Hero
+
+A structured learning path + command reference, in the same style as the Docker guide.
+Kubernetes assumes you're already comfortable with Docker (images, containers, networks, volumes) —
+K8s is the layer that runs and manages many containers across many machines.
+
+---
+
+## Stage 0: Why Kubernetes exists (30 min read)
+
+Docker Compose is great for one machine. But in production you need:
+- Multiple servers (nodes) running containers, not just one
+- Automatic restart if a container crashes
+- Automatic scaling up/down based on load
+- Rolling updates with zero downtime
+- Service discovery and load balancing across many replicas
+
+**Kubernetes (K8s)** is a container orchestrator that solves all of this. Mental model:
+you describe the **desired state** ("I want 3 replicas of this app running, exposed on port 80"),
+and Kubernetes continuously works to make reality match that description.
+
+---
+
+## Stage 1: Core Concepts (Week 1)
+
+### The building blocks
+| Concept | What it is |
+|---|---|
+| **Cluster** | A set of machines (nodes) running Kubernetes |
+| **Node** | A single machine (VM or bare metal) in the cluster — has a `kubelet` agent |
+| **Pod** | The smallest deployable unit — one or more containers that share network/storage |
+| **Deployment** | Manages a set of identical Pods, handles rolling updates & self-healing |
+| **Service** | Stable network endpoint that load-balances traffic to a set of Pods |
+| **Namespace** | A virtual cluster-within-a-cluster for organizing resources |
+| **ConfigMap / Secret** | Externalized configuration and sensitive data |
+| **Volume / PersistentVolume** | Storage that outlives a Pod's lifecycle |
+
+**Key insight:** you almost never create a Pod directly. You create a **Deployment**, which
+creates and manages Pods for you (restarting them if they die, replacing them on updates).
+
+### Install a local cluster to practice on
+- **minikube** (single-node local cluster, most common for learning)
+- **kind** (Kubernetes-in-Docker, lightweight, good for CI)
+- Docker Desktop also has a built-in Kubernetes toggle
+
+```bash
+minikube start
+kubectl cluster-info
+kubectl get nodes
+```
+
+---
+
+## Stage 2: kubectl Basics (Week 1-2)
+
+`kubectl` is the CLI you'll live in — think of it as `docker` but for a whole cluster.
+
+```bash
+kubectl get pods                      # list pods in current namespace
+kubectl get pods -A                   # list pods in ALL namespaces
+kubectl get pods -o wide              # more detail (node, IP)
+kubectl get deployments
+kubectl get services
+kubectl get all                       # everything in current namespace
+kubectl describe pod <pod-name>       # detailed info + events (great for debugging)
+kubectl logs <pod-name>               # view logs
+kubectl logs -f <pod-name>            # follow logs
+kubectl logs <pod-name> -c <container>  # logs from a specific container (multi-container pod)
+kubectl exec -it <pod-name> -- bash   # shell into a pod
+kubectl delete pod <pod-name>         # delete a pod (Deployment will recreate it!)
+kubectl apply -f file.yaml            # create/update resources from a YAML file
+kubectl delete -f file.yaml           # delete resources defined in a YAML file
+kubectl explain pod                   # built-in docs for any resource type/field
+```
+
+**Project:** Run a simple nginx pod imperatively, then kill it and watch a Deployment
+recreate it automatically.
+```bash
+kubectl create deployment mynginx --image=nginx --replicas=3
+kubectl get pods
+kubectl delete pod <one-of-the-pod-names>
+kubectl get pods   # a new one appears automatically
+```
+
+---
+
+## Stage 3: Writing YAML Manifests (Week 2-3)
+
+This is where you'll spend most of your time. Kubernetes is fundamentally YAML-driven.
+
+### Pod (rarely written directly, but foundational)
+```yaml
+apiVersion: v1
+kind: Pod
+metadata:
+  name: my-app
+  labels:
+    app: my-app
+spec:
+  containers:
+    - name: my-app
+      image: my-app:1.0
+      ports:
+        - containerPort: 8080
+```
+
+### Deployment (what you'll actually use)
+```yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: my-app
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: my-app
+  template:
+    metadata:
+      labels:
+        app: my-app
+    spec:
+      containers:
+        - name: my-app
+          image: my-app:1.0
+          ports:
+            - containerPort: 8080
+          resources:
+            requests:
+              cpu: "250m"
+              memory: "256Mi"
+            limits:
+              cpu: "500m"
+              memory: "512Mi"
+          livenessProbe:
+            httpGet:
+              path: /actuator/health
+              port: 8080
+            initialDelaySeconds: 20
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /actuator/health
+              port: 8080
+            initialDelaySeconds: 5
+```
+
+### Service (stable network access to your Pods)
+```yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: my-app-service
+spec:
+  selector:
+    app: my-app          # matches the Deployment's Pod labels
+  ports:
+    - port: 80             # port the Service exposes
+      targetPort: 8080      # port the container listens on
+  type: ClusterIP           # default — internal only
+```
+
+**Service types:**
+| Type | Use case |
+|---|---|
+| `ClusterIP` | Default. Internal-only, other Pods reach it via DNS name |
+| `NodePort` | Exposes on a static port on every node (`<NodeIP>:<port>`) — dev/testing |
+| `LoadBalancer` | Provisions a cloud load balancer (AWS/GCP/Azure) — production external access |
+| `ExternalName` | Maps the Service to an external DNS name |
+
+```bash
+kubectl apply -f deployment.yaml
+kubectl apply -f service.yaml
+kubectl get svc                # see assigned ClusterIP / ports
+kubectl port-forward svc/my-app-service 8080:80   # access locally without exposing publicly
+```
+
+**Project:** Take your Spring Boot Docker image, write a Deployment + Service YAML for it,
+deploy to minikube, and access it via `kubectl port-forward` or `minikube service`.
+
+---
+
+## Stage 4: Configuration — ConfigMaps & Secrets (Week 3)
+
+Never hardcode config or credentials into images — inject them at runtime, same principle as Docker Compose env vars.
+
+```bash
+kubectl create configmap app-config --from-literal=DB_HOST=postgres-service
+kubectl create secret generic app-secret --from-literal=DB_PASSWORD=supersecret
+kubectl get configmaps
+kubectl get secrets
+kubectl describe configmap app-config
+```
+
+```yaml
+# ConfigMap YAML
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: app-config
+data:
+  DB_HOST: postgres-service
+  DB_PORT: "5432"
+```
+
+```yaml
+# Secret YAML (values must be base64-encoded)
+apiVersion: v1
+kind: Secret
+metadata:
+  name: app-secret
+type: Opaque
+data:
+  DB_PASSWORD: c3VwZXJzZWNyZXQ=
+```
+
+Consuming them in a Deployment:
+```yaml
+env:
+  - name: DB_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: app-config
+        key: DB_HOST
+  - name: DB_PASSWORD
+    valueFrom:
+      secretKeyRef:
+        name: app-secret
+        key: DB_PASSWORD
+# or inject ALL keys at once:
+envFrom:
+  - configMapRef:
+      name: app-config
+  - secretRef:
+      name: app-secret
+```
+
+---
+
+## Stage 5: Storage — Volumes & Persistent Data (Week 4)
+
+Pods are ephemeral — when one dies, its filesystem dies with it. For databases and stateful
+apps you need persistent storage that outlives any single Pod.
+
+| Concept | What it does |
+|---|---|
+| **Volume** | Storage attached to a Pod's lifecycle (still lost if the whole Pod is deleted, unlike a container-only restart) |
+| **PersistentVolume (PV)** | A piece of storage provisioned in the cluster (by an admin or dynamically) |
+| **PersistentVolumeClaim (PVC)** | A request for storage by a Pod — binds to a matching PV |
+| **StorageClass** | Defines *how* storage is dynamically provisioned (e.g., cloud disk type) |
+
+```yaml
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: postgres-pvc
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 5Gi
+```
+
+```yaml
+# Using it in a Deployment
+volumes:
+  - name: postgres-storage
+    persistentVolumeClaim:
+      claimName: postgres-pvc
+containers:
+  - name: postgres
+    volumeMounts:
+      - mountPath: /var/lib/postgresql/data
+        name: postgres-storage
+```
+
+```bash
+kubectl get pvc
+kubectl get pv
+```
+
+**Project:** Deploy Postgres as a `StatefulSet` (see Stage 7) with a PVC, then your Spring
+Boot Deployment connecting to it via a Service.
+
+---
+
+## Stage 6: Scaling, Updates & Self-Healing (Week 4-5)
+
+```bash
+kubectl scale deployment my-app --replicas=5      # manual scaling
+kubectl autoscale deployment my-app --min=2 --max=10 --cpu-percent=70   # HPA
+kubectl get hpa                                    # view autoscalers
+
+kubectl set image deployment/my-app my-app=my-app:2.0   # trigger a rolling update
+kubectl rollout status deployment/my-app           # watch the rollout progress
+kubectl rollout history deployment/my-app          # see revision history
+kubectl rollout undo deployment/my-app             # rollback to previous version
+kubectl rollout undo deployment/my-app --to-revision=2
+```
+
+**Rolling update strategy** (in the Deployment spec):
+```yaml
+spec:
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1          # extra pods allowed during rollout
+      maxUnavailable: 0    # zero-downtime — never drop below desired replica count
+```
+
+**Self-healing in action:** kill a pod, watch Kubernetes recreate it within seconds — this
+is the Deployment controller continuously reconciling actual state with desired state.
+
+---
+
+## Stage 7: Beyond Deployments — Other Workload Types (Week 5-6)
+
+| Kind | Use case |
+|---|---|
+| **Deployment** | Stateless apps (web servers, APIs) — Pods are interchangeable |
+| **StatefulSet** | Stateful apps (databases) — stable network identity & storage per Pod (`pod-0`, `pod-1`...) |
+| **DaemonSet** | Run exactly one Pod per node (log collectors, monitoring agents) |
+| **Job** | Run-to-completion task (batch processing, migrations) |
+| **CronJob** | Scheduled Job (like a cron tab, e.g. nightly backups) |
+
+```yaml
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: nightly-backup
+spec:
+  schedule: "0 2 * * *"     # 2 AM daily
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          containers:
+            - name: backup
+              image: my-backup-tool
+          restartPolicy: OnFailure
+```
+
+---
+
+## Stage 8: Networking Deep Dive & Ingress (Week 6)
+
+`LoadBalancer` Services provision one cloud load balancer *per service* — expensive and
+wasteful with many services. **Ingress** gives you a single entry point that routes to
+multiple Services based on hostname/path — like an nginx reverse proxy for the whole cluster.
+
+```yaml
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: my-ingress
+  annotations:
+    nginx.ingress.kubernetes.io/rewrite-target: /
+spec:
+  ingressClassName: nginx
+  rules:
+    - host: myapp.example.com
+      http:
+        paths:
+          - path: /api
+            pathType: Prefix
+            backend:
+              service:
+                name: my-app-service
+                port:
+                  number: 80
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: frontend-service
+                port:
+                  number: 80
+```
+
+Requires an **Ingress Controller** installed in the cluster (e.g., ingress-nginx, Traefik).
+
+```bash
+kubectl get ingress
+kubectl describe ingress my-ingress
+```
+
+---
+
+## Stage 9: Namespaces & Resource Organization (Week 7)
+
+```bash
+kubectl create namespace staging
+kubectl get pods -n staging
+kubectl apply -f deployment.yaml -n staging
+kubectl config set-context --current --namespace=staging   # switch default namespace
+```
+
+Use namespaces to separate environments (`dev`, `staging`, `prod`) or teams within one cluster.
+
+---
+
+## Stage 10: Helm — Package Manager for Kubernetes (Week 7-8)
+
+Writing raw YAML for every environment gets repetitive fast. **Helm** templates your
+manifests so you can parameterize by environment (dev vs prod replica counts, image tags, etc.).
+
+```bash
+helm create mychart              # scaffold a new chart
+helm install my-release ./mychart
+helm upgrade my-release ./mychart
+helm rollback my-release 1
+helm uninstall my-release
+helm list
+helm repo add bitnami https://charts.bitnami.com/bitnami   # install pre-made charts
+helm install my-postgres bitnami/postgresql
+```
+
+**Project:** Convert your Spring Boot Deployment + Service + ConfigMap into a Helm chart
+with a `values.yaml` controlling replica count, image tag, and env vars per environment.
+
+---
+
+## Stage 11: Observability (Week 8+)
+
+```bash
+kubectl top nodes                 # resource usage per node (needs metrics-server)
+kubectl top pods                  # resource usage per pod
+kubectl get events --sort-by=.lastTimestamp   # cluster-wide recent events
+```
+
+- **Prometheus** — metrics collection
+- **Grafana** — dashboards on top of Prometheus
+- **Liveness vs Readiness probes** — liveness restarts unhealthy containers; readiness
+  controls whether a Pod receives traffic (useful during slow startup)
+
+---
+
+## Stage 12 (Hero): CI/CD & GitOps (Week 9+)
+
+- Build image → push to registry → update image tag → `kubectl apply` or Helm upgrade, all via CI (GitHub Actions, GitLab CI, Jenkins)
+- **GitOps** tools (ArgoCD, Flux) watch a Git repo and auto-sync the cluster to match — the manifests in Git are the single source of truth
+- **kustomize** — patch-based YAML customization without templating (built into `kubectl apply -k`)
+
+---
+
+## Full kubectl Command Cheat Sheet
+
+```bash
+# Cluster & context
+kubectl cluster-info
+kubectl config get-contexts
+kubectl config use-context <name>
+kubectl config current-context
+kubectl config set-context --current --namespace=<ns>
+
+# Get / describe / delete (works for most resource types)
+kubectl get <resource>                  # pods, deployments, services, nodes, pvc, ...
+kubectl get <resource> -o yaml          # full YAML of live object
+kubectl get <resource> -o json
+kubectl get <resource> --watch          # live updates
+kubectl describe <resource> <name>
+kubectl delete <resource> <name>
+
+# Apply / manage manifests
+kubectl apply -f file.yaml
+kubectl apply -f ./manifests/           # apply a whole directory
+kubectl delete -f file.yaml
+kubectl diff -f file.yaml               # preview changes before applying
+
+# Debugging
+kubectl logs <pod>
+kubectl logs -f <pod>
+kubectl logs --previous <pod>           # logs from a crashed container's last run
+kubectl exec -it <pod> -- sh
+kubectl describe pod <pod>              # events section shows scheduling/pull/probe failures
+kubectl get events -A --sort-by=.lastTimestamp
+kubectl top pods
+kubectl top nodes
+
+# Scaling & rollouts
+kubectl scale deployment <name> --replicas=N
+kubectl rollout status deployment/<name>
+kubectl rollout history deployment/<name>
+kubectl rollout undo deployment/<name>
+
+# Networking
+kubectl port-forward svc/<service> 8080:80
+kubectl port-forward pod/<pod> 8080:8080
+kubectl get ingress
+kubectl expose deployment <name> --port=80 --target-port=8080 --type=NodePort
+
+# Namespaces
+kubectl create namespace <name>
+kubectl get all -n <namespace>
+
+# ConfigMaps & Secrets
+kubectl create configmap <name> --from-literal=KEY=value
+kubectl create secret generic <name> --from-literal=KEY=value
+kubectl get secret <name> -o jsonpath='{.data.KEY}' | base64 --decode
+
+# Cleanup
+kubectl delete pod --all
+kubectl delete deployment --all
+kubectl delete namespace <name>         # deletes everything inside it too
+```
+
+---
+
+## Suggested capstone project
+
+Take the Spring Boot + Postgres app from the Docker guide and deploy it to Kubernetes:
+1. `Deployment` for the Spring Boot app (3 replicas, resource limits, liveness/readiness probes hitting `/actuator/health`)
+2. `Service` (ClusterIP) for the app
+3. `StatefulSet` + `PersistentVolumeClaim` for Postgres
+4. `ConfigMap` for non-secret config (`DB_HOST`, `DB_PORT`), `Secret` for `DB_PASSWORD`
+5. `Ingress` exposing the app externally at a hostname
+6. Scale the app to 5 replicas and do a rolling update to a new image tag with zero downtime
+7. (Stretch) Package the whole thing as a Helm chart with a `values.yaml`
+
+---
+
+## Docker vs Kubernetes — how the concepts map
+
+| Docker Compose | Kubernetes |
+|---|---|
+| `docker-compose.yml` service | `Deployment` |
+| `depends_on` | Init containers / readiness probes |
+| Compose network | `Service` + cluster DNS |
+| `docker compose up --scale app=3` | `kubectl scale` / `replicas` field |
+| Named volume | `PersistentVolumeClaim` |
+| `.env` file | `ConfigMap` / `Secret` |
+| `docker compose logs` | `kubectl logs` |
+| Single host | Multi-node cluster |
+
+Once you're solid here, the natural next steps are a managed cloud cluster (EKS, GKE, AKS)
+and Helm chart authoring for real deployments.
