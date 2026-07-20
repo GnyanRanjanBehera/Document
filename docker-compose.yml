@@ -1,0 +1,67 @@
+services:
+
+  # MySQL setup
+  mysql:
+    image: mysql:8
+    container_name: task_pay_mysql_db
+    environment:
+      MYSQL_ROOT_PASSWORD: ${DB_PASSWORD}
+      MYSQL_DATABASE: ${DB_NAME}
+    ports:
+      - "3307:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-uroot", "-p${DB_PASSWORD}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+    networks:
+      - task-pay-network
+
+  # phpMyAdmin setup
+  phpmyadmin:
+    image: phpmyadmin/phpmyadmin
+    container_name: task_pay_phpmyadmin
+    environment:
+      PMA_HOST: mysql
+      PMA_PORT: 3306
+      PMA_USER: root
+      PMA_PASSWORD: ${DB_PASSWORD}
+    ports:
+      - "3308:80"
+    depends_on:
+      mysql:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - task-pay-network
+
+  # Spring Boot app
+  task_pay:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: task_pay_container
+    ports:
+      - "2024:2024"
+    depends_on:
+      mysql:
+        condition: service_healthy
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/${DB_NAME}
+      SPRING_DATASOURCE_USERNAME: root
+      SPRING_DATASOURCE_PASSWORD: ${DB_PASSWORD}
+    volumes:
+      - ./src/main/resources/firebase/google-services.json:/app/firebase/google-services.json
+    restart: unless-stopped
+    networks:
+      - task-pay-network
+
+volumes:
+  mysql_data:
+
+networks:
+  task-pay-network:
+    driver: bridge
