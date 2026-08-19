@@ -1,0 +1,27 @@
+MICROSERVICE CONCEPT
+====================
+1.Discovery Server/Service Registry 
+2.API Gatway
+3.Load Balancing
+4.Sleuth and Zipkins
+5.RestTemplate,WebClient,Feign Client 
+6.Config Server
+7.Saga Pattern
+8.Kafka
+9.Circuit Breaker (Resilience4j)
+11.Spring Security + JWT
+12.Centralized Logging (ELK)
+SPRING BOOT CONCEPT
+==========================
+1.Transaction
+2.AOP
+3.JPA
+4.JDBC
+5.Hbernate
+6.JWT
+7.MVC
+8.Caching
+9.JUnit 5 and Mockito
+10.Exception Handling & Validation
+11.Actuator
+12.SLF4J
