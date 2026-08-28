@@ -1,0 +1,47 @@
+Spring Transaction — Interview Cheat Sheet
+PROPAGATION (7 types)
+Type	One-liner	Real use
+REQUIRED (default)	Join if exists, else create new	Normal business ops (order + stock)
+REQUIRES_NEW	Always suspend old, start new (independent)	Audit log that must survive failure
+NESTED	Savepoint inside same tx	Batch — one item fails, rest continue
+SUPPORTS	Join if exists, else run without tx	Shared read method (used both ways)
+NOT_SUPPORTED	Always suspend tx, run without it	Slow file/report write — avoid holding lock
+MANDATORY	Must have existing tx, else throw	Method that should never run standalone
+NEVER	Must NOT have tx, else throw	Health check / JMS listener
+
+Memory trick (say out loud):
+
+REQUIRED → "join or new"
+REQUIRES_NEW → "always new"
+NESTED → "savepoint"
+SUPPORTS → "flexible"
+NOT_SUPPORTED → "always none"
+MANDATORY → "must have"
+NEVER → "must not have"
+
+One golden line for interview:
+
+"Propagation defines how a transactional method behaves when called from within an existing transaction — whether it joins, creates new, nests, suspends, or requires/forbids one."
+
+ISOLATION (4 levels)
+Level	Prevents	Real use
+READ_UNCOMMITTED	nothing	rarely used, rough analytics
+READ_COMMITTED (Postgres/Oracle default)	dirty read	most business apps
+REPEATABLE_READ (MySQL default)	dirty + non-repeatable read	financial statements
+SERIALIZABLE	dirty + non-repeatable + phantom	seat booking, last-stock item
+
+3 problems to know:
+
+Dirty Read — reading uncommitted data
+Non-Repeatable Read — same row, different value on 2nd read
+Phantom Read — same query, different row count on 2nd read
+
+One golden line for interview:
+
+"Isolation defines how much one transaction can see of another concurrently running transaction's changes — trade-off between consistency and performance."
+
+Common interview follow-ups (be ready)
+Why doesn't @Transactional work on self-invocation? → Spring uses proxies (AOP); calling a method from within the same class bypasses the proxy.
+Does @Transactional roll back on checked exceptions? → No, only unchecked (RuntimeException/Error) by default. Use rollbackFor = Exception.class to override.
+REQUIRES_NEW vs NESTED? → REQUIRES_NEW = separate connection/commit, fully independent. NESTED = same connection, savepoint, rolled back together with outer if outer fails.
+Default isolation in Spring? → DEFAULT — uses whatever the underlying DB's default is (not a fixed Spring value).
